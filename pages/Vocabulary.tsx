@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { BookOpen, RefreshCw, Loader2, Bookmark, Sparkles, Plus, UploadCloud, FileText, CheckSquare, Trash2, HelpCircle, Filter, AlertCircle, Download, Search, Trophy, ArrowRight, XCircle, CheckCircle } from 'lucide-react';
+import { BookOpen, RefreshCw, Loader2, Bookmark, Sparkles, Plus, UploadCloud, FileText, CheckSquare, Trash2, HelpCircle, Filter, AlertCircle, Download, Search, Trophy, ArrowRight, XCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { Flashcard, Topic, QuizQuestion } from '../types';
 import { generateFlashcards, generateFlashcardsFromTerms } from '../services/geminiService';
 import { FlashcardItem } from '../components/FlashcardItem';
@@ -23,6 +23,7 @@ export const Vocabulary: React.FC = () => {
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [hideMastered, setHideMastered] = useState(true);
 
   // Selection Mode State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -67,6 +68,11 @@ export const Vocabulary: React.FC = () => {
   const filteredSavedCards = useMemo(() => {
     let result = savedCards;
     
+    // Hide Mastered Filter
+    if (hideMastered) {
+      result = result.filter(c => !c.mastered);
+    }
+
     // Category Filter
     if (selectedCategory !== 'All') {
       result = result.filter(c => (c.category || 'General').trim() === selectedCategory);
@@ -83,7 +89,7 @@ export const Vocabulary: React.FC = () => {
     }
 
     return result;
-  }, [savedCards, selectedCategory, searchQuery]);
+  }, [savedCards, selectedCategory, searchQuery, hideMastered]);
 
   const fetchCards = async (selectedTopic: Topic) => {
     setLoading(true);
@@ -116,6 +122,15 @@ export const Vocabulary: React.FC = () => {
     } else {
       setSavedCards(prev => [...prev, card]);
     }
+  };
+
+  const toggleMasterCard = (card: Flashcard) => {
+    setSavedCards(prev => prev.map(c => {
+      if (c.term === card.term) {
+        return { ...c, mastered: !c.mastered };
+      }
+      return c;
+    }));
   };
 
   const handleSaveNewCard = (card: Flashcard) => {
@@ -473,6 +488,17 @@ export const Vocabulary: React.FC = () => {
                       </select>
                     </div>
                   )}
+
+                  {/* Hide Mastered Toggle */}
+                  <Button 
+                    type="button"
+                    onClick={() => setHideMastered(!hideMastered)}
+                    variant="ghost"
+                    className={`!py-1.5 !px-3 text-xs border ${hideMastered ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-200 text-gray-500'}`}
+                  >
+                    {hideMastered ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {hideMastered ? 'Hiding Mastered' : 'Show All'}
+                  </Button>
                 </div>
                 
                 <div className="flex flex-wrap gap-2 w-full xl:w-auto justify-end items-center">
@@ -609,7 +635,7 @@ export const Vocabulary: React.FC = () => {
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                  {filteredSavedCards.length === 0 ? (
                    <div className="col-span-full py-10 text-center text-gray-400 italic">
-                     No cards found matching your search.
+                     {hideMastered ? "All matching cards are hidden because they are marked as 'Mastered'. Toggle the filter to see them." : "No cards found matching your search."}
                    </div>
                  ) : (
                    filteredSavedCards.map((card) => (
@@ -618,6 +644,7 @@ export const Vocabulary: React.FC = () => {
                        card={card} 
                        isSaved={true}
                        onToggleSave={toggleSaveCard}
+                       onToggleMaster={toggleMasterCard}
                        isSelectionMode={isSelectionMode}
                        isSelected={selectedCards.has(card.term)}
                        onSelect={handleSelectCard}

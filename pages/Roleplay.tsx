@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, User, Stethoscope, Send, StopCircle, Plus, Trash2, Sparkles, GraduationCap, X, Check, Lightbulb, Loader2 } from 'lucide-react';
+import { MessageSquare, User, Stethoscope, Send, StopCircle, Plus, Trash2, Sparkles, GraduationCap, X, Check, Lightbulb, Loader2, Mic } from 'lucide-react';
 import { createChatSession, generateSpeech, playPcmData, getChatFeedback, generateChatHints } from '../services/geminiService';
 import { ChatMessage, Scenario, Difficulty } from '../types';
 import { Button } from '../components/Button';
@@ -71,6 +71,9 @@ export const Roleplay: React.FC = () => {
   // Hints
   const [hints, setHints] = useState<string[]>([]);
   const [isHintsLoading, setIsHintsLoading] = useState(false);
+
+  // Voice Input
+  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('customScenarios', JSON.stringify(savedScenarios));
@@ -198,6 +201,42 @@ export const Roleplay: React.FC = () => {
   const useHint = (hint: string) => {
     setInput(hint);
     setHints([]);
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      // Just visually stop, logic handled by recognition.onend
+      setIsListening(false); 
+      return;
+    }
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'de-DE';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = (e: any) => {
+        console.error("Speech recognition error", e);
+        setIsListening(false);
+      };
+      
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(prev => {
+           // Append with space if needed
+           const trimmed = prev.trim();
+           return trimmed ? `${trimmed} ${transcript}` : transcript;
+        });
+      };
+      
+      recognition.start();
+    } else {
+      alert("Voice input is not supported in this browser. Please use Chrome or Safari.");
+    }
   };
 
   if (!selectedScenario) {
@@ -412,14 +451,26 @@ export const Roleplay: React.FC = () => {
         >
           {isHintsLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lightbulb className="w-5 h-5 fill-current" />}
         </Button>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Antworten Sie auf Deutsch..."
-          className="flex-1 bg-gray-100 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
-          disabled={isLoading}
-        />
+        
+        <div className="flex-1 relative">
+           <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Antworten Sie auf Deutsch..."
+            className="w-full h-full bg-gray-100 text-gray-900 rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all"
+            disabled={isLoading}
+          />
+          <button
+            type="button"
+            onClick={toggleListening}
+            className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-colors ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'text-gray-400 hover:text-gray-600'}`}
+            title="Voice Input"
+          >
+            <Mic className="w-5 h-5" />
+          </button>
+        </div>
+
         <Button type="submit" disabled={isLoading || !input.trim()} className="!rounded-xl px-6">
           <Send className="w-5 h-5" />
         </Button>

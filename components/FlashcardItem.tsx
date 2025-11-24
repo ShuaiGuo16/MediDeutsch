@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Volume2, RotateCw, Heart, Check, Trash2 } from 'lucide-react';
+import { Volume2, RotateCw, Heart, Check, Trash2, Award } from 'lucide-react';
 import { Flashcard } from '../types';
 import { generateSpeech, playPcmData } from '../services/geminiService';
 import { Button } from './Button';
@@ -11,6 +11,7 @@ interface FlashcardItemProps {
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onSelect?: (card: Flashcard) => void;
+  onToggleMaster?: (card: Flashcard) => void;
 }
 
 export const FlashcardItem: React.FC<FlashcardItemProps> = ({ 
@@ -19,7 +20,8 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
   onToggleSave,
   isSelectionMode = false,
   isSelected = false,
-  onSelect
+  onSelect,
+  onToggleMaster
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -51,6 +53,13 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
     }
   };
 
+  const handleMaster = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onToggleMaster) {
+      onToggleMaster(card);
+    }
+  };
+
   const handleClick = () => {
     if (isSelectionMode && onSelect) {
       onSelect(card);
@@ -68,7 +77,7 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
   const getColors = () => {
     const art = card.article.toLowerCase();
     if (art === 'der') return {
-      frontBorder: 'border-blue-100',
+      frontBorder: card.mastered ? 'border-amber-300' : 'border-blue-100',
       badge: 'bg-blue-50 text-blue-600',
       activeRing: 'ring-blue-500',
       selectedBg: 'bg-blue-600',
@@ -77,7 +86,7 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
       backBox: 'bg-blue-800/30'
     };
     if (art === 'die') return {
-      frontBorder: 'border-rose-100',
+      frontBorder: card.mastered ? 'border-amber-300' : 'border-rose-100',
       badge: 'bg-rose-50 text-rose-600',
       activeRing: 'ring-rose-500',
       selectedBg: 'bg-rose-500',
@@ -86,7 +95,7 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
       backBox: 'bg-rose-800/30'
     };
     if (art === 'das') return {
-      frontBorder: 'border-emerald-100',
+      frontBorder: card.mastered ? 'border-amber-300' : 'border-emerald-100',
       badge: 'bg-emerald-50 text-emerald-600',
       activeRing: 'ring-emerald-500',
       selectedBg: 'bg-emerald-600',
@@ -96,7 +105,7 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
     };
     // Default/Plural
     return {
-      frontBorder: 'border-teal-100',
+      frontBorder: card.mastered ? 'border-amber-300' : 'border-teal-100',
       badge: 'bg-teal-50 text-teal-600',
       activeRing: 'ring-teal-500',
       selectedBg: 'bg-teal-600',
@@ -116,7 +125,7 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
       <div className={`card-inner relative w-full h-full text-center rounded-2xl shadow-xl transition-all duration-500 ${isSelectionMode && isSelected ? `ring-4 ${colors.activeRing} ring-offset-2` : ''}`}>
         
         {/* Front */}
-        <div className={`card-front absolute w-full h-full bg-white rounded-2xl border ${colors.frontBorder} p-6 flex flex-col items-center justify-between`}>
+        <div className={`card-front absolute w-full h-full bg-white rounded-2xl border ${colors.frontBorder} ${card.mastered ? 'shadow-amber-100 shadow-lg border-2' : ''} p-6 flex flex-col items-center justify-between`}>
           <div className="w-full flex justify-between items-start">
             <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded ${colors.badge}`}>
               {card.category}
@@ -144,6 +153,16 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
                       <Heart className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
                     </Button>
                   )}
+                  {isSaved && onToggleMaster && (
+                    <Button
+                      variant="ghost"
+                      className={`!p-2 rounded-full hover:bg-gray-50 ${card.mastered ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
+                      onClick={handleMaster}
+                      title={card.mastered ? "Unmark as Mastered" : "Mark as Mastered"}
+                    >
+                      <Award className={`w-5 h-5 ${card.mastered ? 'fill-current' : ''}`} />
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -152,6 +171,9 @@ export const FlashcardItem: React.FC<FlashcardItemProps> = ({
           <div className="flex-1 flex flex-col items-center justify-center">
              <p className="text-gray-400 text-sm mb-1">{card.article}</p>
              <h3 className="text-3xl font-bold text-gray-800 break-words w-full px-2">{card.term}</h3>
+             {card.syllables && (
+               <p className="text-sm text-teal-600/70 font-mono mt-1 tracking-wide">{card.syllables}</p>
+             )}
           </div>
 
           {!isSelectionMode && (

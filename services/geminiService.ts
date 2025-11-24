@@ -27,7 +27,15 @@ export const generateFlashcards = async (topic: Topic, count: number = 6, exclud
     
     CRITICAL: DO NOT generate any of the following terms (they are already known): ${exclusionList}.
     
-    Include the term, grammatical gender (article), a concise definition (max 15 words) in simple professional German, a short example sentence (max 20 words) typically used in a hospital, the English translation of the term, and the English translation of the example sentence.
+    Include:
+    - Term
+    - Syllable breakdown (e.g. "Nie·ren·be·cken") using '·' as separator
+    - Grammatical gender (article)
+    - A concise definition (max 15 words) in simple professional German
+    - A short example sentence (max 20 words) typically used in a hospital
+    - English translation of the term
+    - English translation of the example sentence
+    
     Ensure diversity in the terms (mix of nouns, verbs, and adjectives if appropriate).`;
 
     const response = await ai.models.generateContent({
@@ -41,6 +49,7 @@ export const generateFlashcards = async (topic: Topic, count: number = 6, exclud
             type: Type.OBJECT,
             properties: {
               term: { type: Type.STRING, description: "The German medical term (noun or verb)" },
+              syllables: { type: Type.STRING, description: "Syllable breakdown with dot separator" },
               article: { type: Type.STRING, description: "Definite article (der/die/das) or empty if verb" },
               definition: { type: Type.STRING, description: "Definition in German" },
               exampleSentence: { type: Type.STRING, description: "A realistic sentence used in a clinical setting" },
@@ -81,6 +90,7 @@ export const generateFlashcardsFromTerms = async (terms: string[]): Promise<Flas
       Return a JSON array.
       If a term is completely invalid/not medical, skip it.
       Use concise definitions (max 15 words) and short example sentences (max 20 words).
+      Include syllable breakdown (e.g. "Blind·darm").
       For 'exampleSentenceEnglish', provide the English translation of the German example sentence.`;
 
       const response = await ai.models.generateContent({
@@ -94,6 +104,7 @@ export const generateFlashcardsFromTerms = async (terms: string[]): Promise<Flas
               type: Type.OBJECT,
               properties: {
                 term: { type: Type.STRING },
+                syllables: { type: Type.STRING },
                 article: { type: Type.STRING },
                 definition: { type: Type.STRING },
                 exampleSentence: { type: Type.STRING },
@@ -129,6 +140,7 @@ export const enrichFlashcard = async (term: string): Promise<Flashcard | null> =
     const prompt = `Create a detailed German medical flashcard for the term: "${term}".
     Target audience: Medical professionals (B2/C1).
     Keep the definition concise (max 15 words) and the example sentence short (max 20 words).
+    Include syllable breakdown.
     Return a single JSON object.`;
 
     const response = await ai.models.generateContent({
@@ -140,6 +152,7 @@ export const enrichFlashcard = async (term: string): Promise<Flashcard | null> =
           type: Type.OBJECT,
           properties: {
             term: { type: Type.STRING },
+            syllables: { type: Type.STRING },
             article: { type: Type.STRING },
             definition: { type: Type.STRING },
             exampleSentence: { type: Type.STRING },

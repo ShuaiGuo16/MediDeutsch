@@ -27,6 +27,8 @@ export interface Flashcard {
   exampleSentenceEnglish: string; // New field
   englishTranslation: string;
   category: string;
+  syllables?: string; // New: e.g. "An-ti-bi-o-ti-kum"
+  mastered?: boolean; // New: Learning status
 }
 
 export interface ChatMessage {
