@@ -1,3 +1,4 @@
+
 export enum Difficulty {
   B1 = 'B1',
   B2 = 'B2',
@@ -29,6 +30,11 @@ export interface Flashcard {
   category: string;
   syllables?: string; // New: e.g. "An-ti-bi-o-ti-kum"
   mastered?: boolean; // New: Learning status
+  
+  // SRS / Hospital Metaphor Fields
+  srsLevel?: number; // 0=Notaufnahme, 1=Intensiv, 2=Station, 3=Reha, 4=Entlassen
+  nextReviewDate?: string; // ISO Date string
+  lastReviewDate?: string; // ISO Date string
 }
 
 export interface ChatMessage {
@@ -71,4 +77,12 @@ export interface QuizQuestion {
   correctAnswer: string;
   options: string[];
   card: Flashcard;
+}
+
+export interface StudyNote {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  createdAt: string;
 }

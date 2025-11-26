@@ -1,5 +1,7 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Flashcard, Topic, MedicalCase, Difficulty, ChatMessage } from "../types";
+import { Flashcard, Topic, MedicalCase, Difficulty, ChatMessage, Scenario, QuizQuestion } from "../types";
+import { CORE_VOCABULARY } from "../data/vocabulary";
 
 // Ensure API key is present
 const apiKey = process.env.API_KEY || '';
@@ -18,8 +20,36 @@ const cleanAndParseJSON = (text: string) => {
 
 export const generateFlashcards = async (topic: Topic, count: number = 6, excludeTerms: string[] = []): Promise<Flashcard[]> => {
   try {
+    // 1. HYBRID TIER: Check Local Core Vocabulary first
+    // This saves tokens and reduces latency for standard topics
+    const localTopicCards = CORE_VOCABULARY[topic] || [];
+    
+    // Filter out terms the user already has (case-insensitive check)
+    const availableLocalCards = localTopicCards.filter(localCard => 
+      !excludeTerms.some(excluded => excluded.toLowerCase() === localCard.term.toLowerCase())
+    );
+
+    // If we have enough unique local cards to satisfy the request (or at least some)
+    // We prioritize local cards. If user asks for 6 but we only have 4 new ones locally,
+    // we return those 4. We avoid mixing sources in one call for simplicity, 
+    // but you could combine them if strictly needed.
+    if (availableLocalCards.length > 0) {
+      console.log(`[Hybrid] Serving ${Math.min(count, availableLocalCards.length)} cards from local cache for ${topic}`);
+      
+      // Shuffle array to simulate random generation
+      const shuffled = [...availableLocalCards].sort(() => 0.5 - Math.random());
+      
+      // Return the requested amount (or fewer if that's all we have left)
+      // If we run out of local cards, the NEXT time the user clicks generate, 
+      // availableLocalCards.length will be 0, and it will fall through to the AI.
+      return shuffled.slice(0, count);
+    }
+
+    // 2. DYNAMIC TIER: Fallback to AI
+    // If local list is exhausted or empty for this topic, call Gemini.
+    console.log(`[Hybrid] Local cache exhausted for ${topic}. Calling Gemini AI...`);
+
     // Use the full list of excluded terms joined by commas for efficiency
-    // Gemini Flash has a large context window, so we can pass the entire list to ensure uniqueness
     const exclusionList = excludeTerms.join(", ");
 
     const prompt = `Generate ${count} distinct German medical vocabulary flashcards for the topic "${topic}". 
@@ -355,7 +385,7 @@ export const generateCaseStudy = async (department: string): Promise<MedicalCase
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            id: { type: Type.STRING }, // Just a placeholder, we generate real ID later
+            id: { type: Type.STRING },
             title: { type: Type.STRING },
             department: { type: Type.STRING },
             caseText: { type: Type.STRING },
@@ -384,7 +414,6 @@ export const generateCaseStudy = async (department: string): Promise<MedicalCase
     if (!text) return null;
     
     const result = cleanAndParseJSON(text);
-    // Add runtime ID
     return {
       ...result,
       id: Date.now().toString(),
@@ -394,6 +423,125 @@ export const generateCaseStudy = async (department: string): Promise<MedicalCase
 
   } catch (error) {
     console.error("Error generating case study:", error);
+    return null;
+  }
+};
+
+export const analyzeImageToText = async (base64Image: string, mimeType: string): Promise<string | null> => {
+  try {
+    const prompt = `Analyze this image (which is likely a medical textbook, guideline, or note).
+    Summarize the key medical information in structured Markdown. 
+    Focus on extracting:
+    1. Key medical terms (Fachsprache)
+    2. Important concepts or guidelines
+    3. Keep it concise and organized.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: {
+        parts: [
+          { inlineData: { data: base64Image, mimeType: mimeType } },
+          { text: prompt }
+        ]
+      }
+    });
+
+    return response.text || null;
+  } catch (error) {
+    console.error("Error analyzing image:", error);
+    return null;
+  }
+};
+
+export const generateScenarioFromText = async (text: string): Promise<Scenario | null> => {
+  try {
+    const prompt = `Based on the following medical notes, create a Roleplay Scenario.
+    
+    Notes Content:
+    "${text.substring(0, 2000)}"
+    
+    Create a scenario where the user (Doctor) has to apply knowledge from these notes.
+    The AI acts as a patient or colleague related to this topic.
+    
+    Return JSON with 'title', 'description', 'systemPrompt' (describing the AI's role and behavior).
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            systemPrompt: { type: Type.STRING }
+          },
+          required: ["title", "description", "systemPrompt"]
+        }
+      }
+    });
+
+    const textRes = response.text;
+    if (!textRes) return null;
+    const result = cleanAndParseJSON(textRes);
+    return {
+      ...result,
+      id: `note-${Date.now()}`,
+      difficulty: Difficulty.B2,
+      isCustom: true
+    };
+  } catch (error) {
+    console.error("Error generating scenario from note:", error);
+    return null;
+  }
+};
+
+export const generateQuizFromText = async (text: string): Promise<QuizQuestion[] | null> => {
+  try {
+    const prompt = `Based on these notes, generate 3 multiple-choice quiz questions to test understanding.
+    
+    Notes:
+    "${text.substring(0, 2000)}"
+    
+    Return JSON array of questions. Each has 'question', 'options' (4 strings), 'correctAnswer'.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: { type: Type.ARRAY, items: { type: Type.STRING } },
+              correctAnswer: { type: Type.STRING }
+            },
+            required: ["question", "options", "correctAnswer"]
+          }
+        }
+      }
+    });
+
+    const textRes = response.text;
+    if (!textRes) return null;
+    const rawQuestions = cleanAndParseJSON(textRes);
+    
+    return rawQuestions.map((q: any, i: number) => ({
+      id: `note-q-${i}`,
+      type: 'definition',
+      question: q.question,
+      options: q.options,
+      correctAnswer: q.correctAnswer,
+      card: { term: 'Review', definition: 'Review your notes' } as any // Placeholder
+    }));
+  } catch (error) {
+    console.error("Error generating quiz from note:", error);
     return null;
   }
 };

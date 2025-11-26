@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileText, Play, Loader2, CheckCircle, XCircle, ArrowRight, Brain, PlusCircle, Check } from 'lucide-react';
+import { FileText, Play, Loader2, CheckCircle, XCircle, ArrowRight, Brain, PlusCircle, Check, Printer } from 'lucide-react';
 import { Button } from '../components/Button';
 import { generateCaseStudy, generateSpeech, playPcmData } from '../services/geminiService';
 import { MedicalCase, Flashcard } from '../types';
@@ -86,6 +86,70 @@ export const CaseStudy: React.FC = () => {
         setIsPlaying(false);
       }
     }
+  };
+
+  const handlePrint = () => {
+    if (!currentCase) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Case Study: ${currentCase.title}</title>
+          <style>
+            body { font-family: 'Times New Roman', Times, serif; padding: 40px; color: #1f2937; line-height: 1.6; max-width: 800px; margin: 0 auto; }
+            h1 { font-family: 'Arial', sans-serif; color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 10px; margin-bottom: 20px; }
+            .meta { font-family: 'Arial', sans-serif; color: #6b7280; font-size: 14px; margin-bottom: 30px; display: flex; justify-content: space-between; }
+            .content { font-size: 16px; margin-bottom: 40px; text-align: justify; }
+            .worksheet { border-top: 1px dashed #cbd5e1; padding-top: 30px; }
+            .question { margin-bottom: 20px; break-inside: avoid; }
+            .q-text { font-weight: bold; font-family: 'Arial', sans-serif; margin-bottom: 10px; }
+            .options { list-style: none; padding: 0; margin-left: 20px; }
+            .option { margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+            .checkbox { width: 16px; height: 16px; border: 1px solid #94a3b8; display: inline-block; border-radius: 4px; }
+            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #9ca3af; font-family: 'Arial', sans-serif; }
+          </style>
+        </head>
+        <body>
+          <h1>${currentCase.title}</h1>
+          <div class="meta">
+            <span>Department: ${currentCase.department}</span>
+            <span>Date: ${new Date().toLocaleDateString()}</span>
+          </div>
+          
+          <div class="content">
+            ${currentCase.caseText.replace(/\n/g, '<br/>')}
+          </div>
+
+          <div class="worksheet">
+            <h2 style="font-family: Arial, sans-serif; font-size: 18px; color: #1e3a8a;">Verständnisfragen</h2>
+            ${currentCase.questions.map((q, idx) => `
+              <div class="question">
+                <div class="q-text">${idx + 1}. ${q.text}</div>
+                <ul class="options">
+                  ${q.options.map(opt => `
+                    <li class="option">
+                      <span class="checkbox"></span> ${opt}
+                    </li>
+                  `).join('')}
+                </ul>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="footer">
+            MediDeutsch - Clinical Case Worksheet
+          </div>
+          <script>
+            window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const handleOptionSelect = (qIndex: number, optionIndex: number) => {
@@ -192,6 +256,17 @@ export const CaseStudy: React.FC = () => {
            >
              {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
            </select>
+           
+           <Button 
+             variant="ghost"
+             onClick={handlePrint}
+             disabled={!currentCase}
+             className="text-gray-400 hover:text-indigo-600 !px-2"
+             title="Print Case Worksheet"
+           >
+             <Printer className="w-5 h-5" />
+           </Button>
+
            <Button onClick={fetchNewCase} disabled={loading} variant="primary" className="bg-indigo-600 hover:bg-indigo-700">
              {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Brain className="w-4 h-4" />}
              New Case
